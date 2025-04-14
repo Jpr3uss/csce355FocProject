@@ -1,0 +1,143 @@
+# All regexes below are in infix form.
+# A Slash (/) stands for the empty set.
+# Concatenation is juxtaposition as usual.
+# "/*" (the Kleene closure of the empty set) matches
+#     the empty string and nothing else.
+
+# Some basic regexes
+/                                                                      #1
+a                                                                      #2
+b                                                                      #3
+c                                                                      #4
+d                                                                      #5
+a+b                                                                    #6
+ab                                                                     #7
+a*                                                                     #8
+
+# epsilon
+/*                                                                     #9
+/*/*                                                                  #10
+/*/*/*                                                                #11
+/*(/*/*)                                                              #12
+(/*/*)/*                                                              #13
+
+# some empty regexes
+/a                                                                    #14
+a/                                                                    #15
+/+/                                                                   #16
+/*/                                                                   #17
+//                                                                    #18
+(a+b)*/                                                               #19
+/(a+b)*                                                               #20
+(abc)*/(cba)*+/(a+b+c)+(a*+b*+c*)/                                    #21
+
+# regexes containing epsilon
+(abcd)*(cdab)*                                                        #22
+(aa)*+aa*                                                             #23
+abc+a*b*c*                                                            #24
+a+b+c*+d                                                              #25
+(a+b+/*)(c+/*+d)(/*+e+f)                                              #26
+
+# regexes not containing epsilon
+a/*+/*a                                                               #27
+aa*+b*b                                                               #28
+a+b+c+d                                                               #29
+
+# regexes containing nonepsilon
+/*+/+/+a                                                              #30
+
+# finite regexes
+a+bc+abc+d                                                            #31
+/*******                                                              #32
+(a+b)*/+c+d                                                           #33
+a+ab+abc+abcd+/*                                                      #34
+(a+b)(c+d)eeeee                                                       #35
+
+# infinite regexes
+abc+bcd+(abcde)*                                                      #36
+ab*c                                                                  #37
+a*b+c                                                                 #38
+(a+b)c+d(a+(bc)*)                                                     #39
+
+# some concatenations
+abcd                                                                  #40
+aaaa                                                                  #41
+
+# some Kleene closures
+ab*                                                                   #42
+a*b                                                                   #43
+(ab)*                                                                 #44
+a+b*                                                                  #45
+a*+b                                                                  #46
+(a+b)*                                                                #47
+
+# some unions
+a+b+c+d+/*                                                            #48
+ab+bc+cd+/                                                            #49
+(a+b+c)(b+c+d)                                                        #50
+(a+b)c+a(b+c)                                                         #51
+
+# regexes having strings starting with ...
+(cd)*+((a+/*)bc(/*+d))*  # a or b or c but not d                      #52
+(a+/*)(b+/*)(cd)*e       # a or b or c or e but not d                 #53
+a(a+b+c+d)*              # only a                                     #54
+
+# regexes having strings ending with ...
+(dc)*+((d+/*)cb(/*+a))*  # a or b or c but not d                      #55
+e(dc)*(b+/*)(a+/*)       # a or b or c or e but not d                 #56
+(a+b+c+d)*a              # only a                                     #57
+
+# to test prefixes
+/abc                                                                  #58
+/*abc                                                                 #59
+abc/                                                                  #60
+abc/*                                                                 #61
+(abc)*                                                                #62
+bc(abc)*                                                              #63
+(abc)*ab                                                              #64
+
+# regexes to replace a with zero or more b's
+a+ab+bc+baca+(abcd)*                                                  #65
+(caaaa+ab)*a+bb                                                       #66
+
+# some miscellaneous regexes
+(a+b)(b+c)(c+d)(d+a)     # to check reversal, insert, strip           #67
+(ab(c+/*))*              # matches ababc, tests insert, strip         #68
+(ab+bc(a+d)*)*           # to test insert, strip                      #69
+/*/*                     # to test insert                             #70
+
+# some regexes to simplify
+a**                                                                   #71
+a*****                                                                #72
+a**+/                                                                 #73
+/+a**                                                                 #74
+/(a+bc+def)                                                           #75
+abc/de                                                                #76
+(a/b)(c/d)                                                            #77
+a/b+cd                                                                #78
+/*a                                                                   #79
+a/*                                                                   #80
+/*a/*                                                                 #81
+(/a)*b                                                                #82
+(a+/*)*                                                               #83
+(/*+a)*                                                               #84
+(/*+/*)*                                                              #85
+(ab/c)*+ab                                                            #86
+((/a)*+(c+(d/)*))*                                                    #87
+((a/a)*+(b/c)*)*                                                      #88
+((a/a)+/*)*                                                           #89
+(/*+/*+/*+/*+/*)*                                                     #90
+
+# regexes for testing if they match "abac"
+abac                                                                  #91
+a*b*a*c*                                                              #92
+(a+d)(b+c)(d+a)(c+e)                                                  #93
+(ab)*c                                                                #94
+(a+b)*/*c                                                             #95
+(aa+b)*c                                                              #96
+a(b(ac))                                                              #97
+
+# regexes involving digits
+0                                                                     #98
+(1+2)*                                                                #99
+(34+567a)*                                                           #100
