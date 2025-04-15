@@ -1,5 +1,5 @@
 
 # cache and temp files, out/ is preserved for now since cabal seems to not want to 
 # work on my laptop
-dis-newstyle/
+dist-newstyle/
 tmp/
