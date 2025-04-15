@@ -9,6 +9,7 @@ data Options = Tree
              | Simplify
              | Empty
              | HasEpsilon
+             | HasNonEpsilon
   deriving (Show)
 
 -- Parser for command-line options
@@ -29,6 +30,9 @@ optionsParser =
     <|> flag' HasEpsilon
         ( long "has-epsilon"
         <> help "Check if the regex language contains epsilon" )
+    <|> flag' HasNonEpsilon
+        ( long "has-nonepsilon"
+        <> help "Check if the regex language contains some non-empty string" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -113,11 +117,12 @@ main = do
 
     -- Apply the appropriate action based on the option
     let result = case opts of
-            Tree        -> Strings  (map show trees)  -- Convert trees to strings for direct printing
-            NoOp        -> Trees    (noOpAction trees)
-            Simplify    -> Trees    (simplifyAction trees)
-            Empty       -> Strings  (emptyAction trees)
-            HasEpsilon  -> Strings  (hasEpsilonAction trees)
+            Tree            -> Strings  (map show trees)  -- Convert trees to strings for direct printing
+            NoOp            -> Trees    (noOpAction trees)
+            Simplify        -> Trees    (simplifyAction trees)
+            Empty           -> Strings  (emptyAction trees)
+            HasEpsilon      -> Strings  (hasEpsilonAction trees)
+            HasNonEpsilon   -> Strings  (hasNonEpsilonAction trees)
 
     -- Handle the result
     case result of
@@ -196,16 +201,16 @@ simplifyAction = map simplifyTree
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Null, _)   -> Null                             -- / . t = /
-                (_, Null)   -> Null                             -- t . / = /
+                (Null, _)    -> Null                            -- / . t = /
+                (_, Null)    -> Null                            -- t . / = /
                 (Epsilon, _) -> t2'                             -- e . t = t
                 (_, Epsilon) -> t1'                             -- t . e = t
-                _           -> Concat t1' t2'                   -- (s . t)' = s' . t'
+                _            -> Concat t1' t2'                  -- (s . t)' = s' . t'
 
     -- Base cases
     simplifyTree (Literal c)  = Literal c                       -- base case
     simplifyTree Epsilon      = Epsilon                         -- base case
-    simplifyTree Null        = Null                             -- base case
+    simplifyTree Null         = Null                            -- base case
 
 
 -- Null Action
@@ -235,3 +240,14 @@ hasEpsilonAction trees = map hasEpsilon (simplifyAction trees)
                                         then "yes"
                                         else "no"
         hasEpsilon _ = "no"  -- For other cases, return "no"
+
+-- HasNonEpsilon Action
+-- Checks if the language of each regex tree contains some non-empty string
+hasNonEpsilonAction :: [RegexTree] -> [String]
+hasNonEpsilonAction trees = map hasNonEpsilon (simplifyAction trees)
+    where
+        -- Helper function to check if a simplified tree has some non-empty string
+        hasNonEpsilon :: RegexTree -> String
+        hasNonEpsilon Epsilon   = "no"
+        hasNonEpsilon Null      = "no"
+        hasNonEpsilon _         = "yes"  -- Possible thanks to the simplifcation 
