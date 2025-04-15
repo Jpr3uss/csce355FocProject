@@ -8,6 +8,7 @@ data Options = Tree
              | NoOp
              | Simplify
              | Empty
+             | HasEpsilon
   deriving (Show)
 
 -- Parser for command-line options
@@ -25,6 +26,9 @@ optionsParser =
     <|> flag' Empty
         ( long "empty"
         <> help "Check if the regex language is empty" )
+    <|> flag' HasEpsilon
+        ( long "has-epsilon"
+        <> help "Check if the regex language contains epsilon" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -109,10 +113,11 @@ main = do
 
     -- Apply the appropriate action based on the option
     let result = case opts of
-            Tree -> Strings (map show trees)  -- Convert trees to strings for direct printing
-            NoOp -> Trees (noOpAction trees)
-            Simplify -> Trees (simplifyAction trees)
-            Empty -> Strings (emptyAction trees)
+            Tree        -> Strings  (map show trees)  -- Convert trees to strings for direct printing
+            NoOp        -> Trees    (noOpAction trees)
+            Simplify    -> Trees    (simplifyAction trees)
+            Empty       -> Strings  (emptyAction trees)
+            HasEpsilon  -> Strings  (hasEpsilonAction trees)
 
     -- Handle the result
     case result of
@@ -210,5 +215,23 @@ emptyAction trees = map isNull (simplifyAction trees)
     where
         -- Helper function to check if a simplified tree is Null
         isNull :: RegexTree -> String
-        isNull Null = "yes"
-        isNull _     = "no"
+        isNull Null     = "yes"
+        isNull _        = "no"
+
+
+-- HasEpsilon Action
+-- Checks if the language of each regex tree contains epsilon
+hasEpsilonAction :: [RegexTree] -> [String]
+hasEpsilonAction trees = map hasEpsilon (simplifyAction trees)
+    where
+        -- Helper function to check if a simplified tree has Epsilon
+        hasEpsilon :: RegexTree -> String
+        hasEpsilon Epsilon  = "yes"
+        hasEpsilon (Star _) = "yes"
+        hasEpsilon (Union t1 t2)    = if hasEpsilon t1 == "yes" || hasEpsilon t2 == "yes"
+                                        then "yes"
+                                        else "no"
+        hasEpsilon (Concat t1 t2)   = if hasEpsilon t1 == "yes" && hasEpsilon t2 == "yes"
+                                        then "yes"
+                                        else "no"
+        hasEpsilon _ = "no"  -- For other cases, return "no"
