@@ -7,20 +7,24 @@ import Options.Applicative
 data Options = Tree
              | NoOp
              | Simplify
+             | Empty
   deriving (Show)
 
 -- Parser for command-line options
 optionsParser :: Parser Options
 optionsParser =
     flag' Tree
-    ( long "tree"
-    <> help "Print the parsed regex tree for debugging" )
-  <|> flag' NoOp
-    ( long "no-op"
-    <> help "Perform no operation on the regex (just parse and print)" )
-  <|> flag' Simplify
-    ( long "simplify"
-    <> help "Simplify the regex" )
+        ( long "tree"
+        <> help "Print the parsed regex tree for debugging" )
+    <|> flag' NoOp
+        ( long "no-op"
+        <> help "Perform no operation on the regex (just parse and print)" )
+    <|> flag' Simplify
+        ( long "simplify"
+        <> help "Simplify the regex" )
+    <|> flag' Empty
+        ( long "empty"
+        <> help "Check if the regex language is empty" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -36,7 +40,7 @@ optsInfo = info (optionsParser <**> helper)
 data OpResult = Trees [RegexTree] | Strings [String]
 
 -- Define a tree for regex
-data RegexTree = Empty                -- Represents the empty set
+data RegexTree = Null                -- Represents the empty set
                | Epsilon              -- Represents the empty string
                | Literal Char         -- Represents any literal character
                | Concat RegexTree RegexTree
@@ -56,7 +60,7 @@ buildTree input = head (foldl processChar [] input)
             (t:ts) ->
               -- We need to check for the special case that we read "/*"
 
-              if t == Empty then  -- "If the top of the stack is "/""
+              if t == Null then  -- "If the top of the stack is "/""
                 Epsilon : ts      -- Pop the t off by adding epsilon to the tail.
 
               else                -- t is anything but "/"
@@ -73,14 +77,14 @@ buildTree input = head (foldl processChar [] input)
             (t2:t1:ts) -> Union t1 t2 : ts
             _          -> error "Invalid regex: '+' requires two operands"
 
-      | char == '/' = Empty : stack -- Push the empty set onto the stack
+      | char == '/' = Null : stack -- Push the empty set onto the stack
 
       | otherwise = Literal char : stack
 
 
 -- Helper function that exports the parsed Regex tree into a prefix string.
 treeToPrefix :: RegexTree -> String
-treeToPrefix Empty = "/"
+treeToPrefix Null = "/"
 treeToPrefix Epsilon = "*/"
 treeToPrefix (Literal c) = [c]
 treeToPrefix (Concat t1 t2) = '.' : treeToPrefix t1 ++ treeToPrefix t2
@@ -108,6 +112,7 @@ main = do
             Tree -> Strings (map show trees)  -- Convert trees to strings for direct printing
             NoOp -> Trees (noOpAction trees)
             Simplify -> Trees (simplifyAction trees)
+            Empty -> Strings (emptyAction trees)
 
     -- Handle the result
     case result of
@@ -133,6 +138,7 @@ simplifyAction = map simplifyTree
     simplifyTree :: RegexTree -> RegexTree
 
     -- Double star case
+    -- note: "t@(Star _)" is a pattern that matches a Star node and binds it to t.
     simplifyTree (Star t@(Star _)) = simplifyTree t             -- t** = t*
 
     -- (s or e)* case
@@ -145,7 +151,7 @@ simplifyAction = map simplifyTree
            _ -> Star (Union t1' t2')                            -- Otherwise, keep the structure
 
     -- Star of empty set
-    simplifyTree (Star Empty) = Epsilon                         -- /* = e
+    simplifyTree (Star Null) = Epsilon                         -- /* = e
 
     -- Star of epsilon
     simplifyTree (Star Epsilon) = Epsilon                       -- e* = e
@@ -154,15 +160,15 @@ simplifyAction = map simplifyTree
     simplifyTree (Star t) =
       let simplifiedT = simplifyTree t
       in case simplifiedT of
-           Empty -> Epsilon                                     -- /* = e
+           Null -> Epsilon                                     -- /* = e
            Epsilon -> Epsilon                                   -- e* = e
            _ -> Star simplifiedT                                -- Otherwise, keep the star
 
     -- Union cases
     simplifyTree (Union t1 t2)
-      | t1 == Empty && t2 == Empty = Empty                      -- / + / = /
-      | t1 == Empty = simplifyTree t2                           -- / + t = t
-      | t2 == Empty = simplifyTree t1                           -- t + / = t
+      | t1 == Null && t2 == Null = Null                      -- / + / = /
+      | t1 == Null = simplifyTree t2                           -- / + t = t
+      | t2 == Null = simplifyTree t1                           -- t + / = t
       | t1 == Epsilon && t2 == Epsilon = Epsilon                -- e + e = e
       | t1 == Epsilon = Union Epsilon (simplifyTree t2)         -- e + t = t
       | t2 == Epsilon = Union (simplifyTree t1) Epsilon         -- t + e = t
@@ -170,23 +176,23 @@ simplifyAction = map simplifyTree
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Empty, Empty) -> Empty                         -- / + / = /
-                (Empty, _)   -> t2'                             -- / + t = t
-                (_, Empty)   -> t1'                             -- t + / = t
+                (Null, Null) -> Null                         -- / + / = /
+                (Null, _)   -> t2'                             -- / + t = t
+                (_, Null)   -> t1'                             -- t + / = t
                 (Epsilon, Epsilon) -> Epsilon                   -- e + e = e
                 _           -> Union t1' t2'                    -- (t + s)' = t' + s'  
 
     -- Concat cases
     simplifyTree (Concat t1 t2)
-      | t1 == Empty || t2 == Empty = Empty                      -- / . t = /, t . / = /
+      | t1 == Null || t2 == Null = Null                      -- / . t = /, t . / = /
       | t1 == Epsilon = simplifyTree t2                         -- e . t = t
       | t2 == Epsilon = simplifyTree t1                         -- t . e = t
       | otherwise =
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Empty, _)   -> Empty                           -- / . t = /
-                (_, Empty)   -> Empty                           -- t . / = /
+                (Null, _)   -> Null                           -- / . t = /
+                (_, Null)   -> Null                           -- t . / = /
                 (Epsilon, _) -> t2'                             -- e . t = t
                 (_, Epsilon) -> t1'                             -- t . e = t
                 _           -> Concat t1' t2'                   -- (s . t)' = s' . t'
@@ -194,4 +200,15 @@ simplifyAction = map simplifyTree
     -- Base cases
     simplifyTree (Literal c)  = Literal c                       -- base case
     simplifyTree Epsilon      = Epsilon                         -- base case
-    simplifyTree Empty        = Empty                           -- base case
+    simplifyTree Null        = Null                           -- base case
+
+
+-- Null Action
+-- Checks if the language of each regex tree is empty
+emptyAction :: [RegexTree] -> [String]
+emptyAction trees = map isNull (simplifyAction trees)
+    where
+        -- Helper function to check if a simplified tree is Null
+        isNull :: RegexTree -> String
+        isNull Null = "yes"
+        isNull _     = "no"
