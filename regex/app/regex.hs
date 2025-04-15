@@ -10,6 +10,8 @@ data Options = Tree
              | Empty
              | HasEpsilon
              | HasNonEpsilon
+             | Uses String
+             | NotUsing String
   deriving (Show)
 
 -- Parser for command-line options
@@ -33,6 +35,14 @@ optionsParser =
     <|> flag' HasNonEpsilon
         ( long "has-nonepsilon"
         <> help "Check if the regex language contains some non-empty string" )
+    <|> Uses <$> strOption
+        ( long "uses"
+        <> metavar "STRING"
+        <> help "Check if the regex language contains a string that contains one of the given characters" )
+    <|> NotUsing <$> strOption
+        ( long "not-using"
+        <> metavar "STRING"
+        <> help "Check if the regex language does not contain a string that contains one of the given characters" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -115,14 +125,36 @@ main = do
     -- Build a tree for each line
     let trees = map buildTree linesOfInput
 
+
+
     -- Apply the appropriate action based on the option
     let result = case opts of
-            Tree            -> Strings  (map show trees)  -- Convert trees to strings for direct printing
+        -- Convert trees to strings for direct printing
+            Tree            -> Strings  (map show trees)
+
+        -- Do nothing, just parse and print
             NoOp            -> Trees    (noOpAction trees)
+        
+        -- Simplify the regex
             Simplify        -> Trees    (simplifyAction trees)
+
+        -- Check if the regex language is empty
             Empty           -> Strings  (emptyAction trees)
+
+        -- Check if the regex language contains epsilon
             HasEpsilon      -> Strings  (hasEpsilonAction trees)
+        
+        -- Check if the regex language contains some non-empty string
             HasNonEpsilon   -> Strings  (hasNonEpsilonAction trees)
+
+        -- Check if the regex language contains a string that contains one of the given characters
+            Uses s          -> Strings  (usesAction s trees)
+
+        -- Check if the regex language does not contain a string that contains one of the given characters
+            NotUsing s      -> Strings  (notUsingAction s trees)
+
+
+
 
     -- Handle the result
     case result of
@@ -250,4 +282,40 @@ hasNonEpsilonAction trees = map hasNonEpsilon (simplifyAction trees)
         hasNonEpsilon :: RegexTree -> String
         hasNonEpsilon Epsilon   = "no"
         hasNonEpsilon Null      = "no"
-        hasNonEpsilon _         = "yes"  -- Possible thanks to the simplifcation 
+        hasNonEpsilon _         = "yes"  -- Possible thanks to the simplifcation
+
+-- Uses Action
+-- Check if the regex language contains a string that contains one of the given characters
+usesAction :: String -> [RegexTree] -> [String]
+usesAction s trees = map (uses s) (simplifyAction trees)
+    where
+        -- Helper function to check if a tree uses any character from the string
+        uses :: String -> RegexTree -> String
+        uses chars (Literal c)      = if c `elem` chars then "yes" else "no"
+        uses chars (Concat t1 t2)   = if uses chars t1 == "yes" || uses chars t2 == "yes"
+                                        then "yes"
+                                        else "no"
+        uses chars (Union t1 t2)    = if uses chars t1 == "yes" || uses chars t2 == "yes"
+                                        then "yes"
+                                        else "no"
+        uses chars (Star t)         = uses chars t
+        uses _ Epsilon              = "no"
+        uses _ Null                 = "no"
+
+-- NotUsing Action
+-- Check if the regex language does not contain a string that contains one of the given characters
+notUsingAction :: String -> [RegexTree] -> [String]
+notUsingAction s trees = map (notUsing s) (simplifyAction trees)
+    where
+        -- Helper function to check if a tree does not use any character from the string
+        notUsing :: String -> RegexTree -> String
+        notUsing chars (Literal c)      = if c `elem` chars then "no" else "yes"
+        notUsing chars (Concat t1 t2)   = if notUsing chars t1 == "no" && notUsing chars t2 == "no"
+                                            then "no"
+                                            else "yes"
+        notUsing chars (Union t1 t2)    = if notUsing chars t1 == "no" && notUsing chars t2 == "no"
+                                            then "no"
+                                            else "yes"
+        notUsing chars (Star t)         = notUsing chars t
+        notUsing _ Epsilon              = "yes"
+        notUsing _ Null                 = "yes"
