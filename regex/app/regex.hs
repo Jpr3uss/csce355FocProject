@@ -25,6 +25,9 @@ optsInfo = info (optionsParser <**> helper)
 
 -- ============================== MAIN AND HELPER FUNCTIONS =======================================
 
+-- Define a sum type for operation results
+data OpResult = Trees [RegexTree] | Strings [String]
+
 -- Define a tree for regex
 data RegexTree = Empty                -- Represents the empty set
                | Epsilon              -- Represents the empty string
@@ -96,8 +99,18 @@ main = do
   -- Build a tree for each
   let trees = map buildTree linesOfInput
 
-  case opts of
+  let result = case opts of
     NoOp -> noOpAction trees
+    Simplify -> simplifyAction trees
+
+  -- Handle the result
+  case result of
+    Trees transformedTrees -> do
+      -- Print the transformed trees
+      mapM_ (putStrLn . treeToPrefix) transformedTrees
+    Strings answers -> do
+      -- Print the answers
+      mapM_ putStrLn answers
 
 
 -- ======================================== OPERATIONS ============================================
