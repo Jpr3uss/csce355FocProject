@@ -151,7 +151,7 @@ simplifyAction = map simplifyTree
            _ -> Star (Union t1' t2')                            -- Otherwise, keep the structure
 
     -- Star of empty set
-    simplifyTree (Star Null) = Epsilon                         -- /* = e
+    simplifyTree (Star Null) = Epsilon                          -- /* = e
 
     -- Star of epsilon
     simplifyTree (Star Epsilon) = Epsilon                       -- e* = e
@@ -160,15 +160,15 @@ simplifyAction = map simplifyTree
     simplifyTree (Star t) =
       let simplifiedT = simplifyTree t
       in case simplifiedT of
-           Null -> Epsilon                                     -- /* = e
+           Null -> Epsilon                                      -- /* = e
            Epsilon -> Epsilon                                   -- e* = e
            _ -> Star simplifiedT                                -- Otherwise, keep the star
 
     -- Union cases
     simplifyTree (Union t1 t2)
-      | t1 == Null && t2 == Null = Null                      -- / + / = /
-      | t1 == Null = simplifyTree t2                           -- / + t = t
-      | t2 == Null = simplifyTree t1                           -- t + / = t
+      | t1 == Null && t2 == Null = Null                         -- / + / = /
+      | t1 == Null = simplifyTree t2                            -- / + t = t
+      | t2 == Null = simplifyTree t1                            -- t + / = t
       | t1 == Epsilon && t2 == Epsilon = Epsilon                -- e + e = e
       | t1 == Epsilon = Union Epsilon (simplifyTree t2)         -- e + t = t
       | t2 == Epsilon = Union (simplifyTree t1) Epsilon         -- t + e = t
@@ -176,23 +176,23 @@ simplifyAction = map simplifyTree
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Null, Null) -> Null                         -- / + / = /
-                (Null, _)   -> t2'                             -- / + t = t
-                (_, Null)   -> t1'                             -- t + / = t
+                (Null, Null) -> Null                            -- / + / = /
+                (Null, _)   -> t2'                              -- / + t = t
+                (_, Null)   -> t1'                              -- t + / = t
                 (Epsilon, Epsilon) -> Epsilon                   -- e + e = e
                 _           -> Union t1' t2'                    -- (t + s)' = t' + s'  
 
     -- Concat cases
     simplifyTree (Concat t1 t2)
-      | t1 == Null || t2 == Null = Null                      -- / . t = /, t . / = /
+      | t1 == Null || t2 == Null = Null                         -- / . t = /, t . / = /
       | t1 == Epsilon = simplifyTree t2                         -- e . t = t
       | t2 == Epsilon = simplifyTree t1                         -- t . e = t
       | otherwise =
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Null, _)   -> Null                           -- / . t = /
-                (_, Null)   -> Null                           -- t . / = /
+                (Null, _)   -> Null                             -- / . t = /
+                (_, Null)   -> Null                             -- t . / = /
                 (Epsilon, _) -> t2'                             -- e . t = t
                 (_, Epsilon) -> t1'                             -- t . e = t
                 _           -> Concat t1' t2'                   -- (s . t)' = s' . t'
@@ -200,7 +200,7 @@ simplifyAction = map simplifyTree
     -- Base cases
     simplifyTree (Literal c)  = Literal c                       -- base case
     simplifyTree Epsilon      = Epsilon                         -- base case
-    simplifyTree Null        = Null                           -- base case
+    simplifyTree Null        = Null                             -- base case
 
 
 -- Null Action
