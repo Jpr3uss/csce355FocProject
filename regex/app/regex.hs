@@ -140,15 +140,15 @@ simplifyAction = map simplifyTree
       let t1' = simplifyTree t1
           t2' = simplifyTree t2
       in case (t1', t2') of
-           (Epsilon, _) -> simplifyTree (Star t2')                  -- (e + s)* = s*
-           (_, Epsilon) -> simplifyTree (Star t1')                  -- (s + e)* = s*
-           _ -> Star (Union t1' t2')                                -- Otherwise, keep the structure
+           (Epsilon, _) -> simplifyTree (Star t2')              -- (e + s)* = s*
+           (_, Epsilon) -> simplifyTree (Star t1')              -- (s + e)* = s*
+           _ -> Star (Union t1' t2')                            -- Otherwise, keep the structure
 
     -- Star of empty set
     simplifyTree (Star Empty) = Epsilon                         -- /* = e
 
     -- Star of epsilon
-    simplifyTree (Star Epsilon) = Epsilon                      -- e* = e
+    simplifyTree (Star Epsilon) = Epsilon                       -- e* = e
 
     -- Simplify other stars
     simplifyTree (Star t) =
@@ -170,11 +170,11 @@ simplifyAction = map simplifyTree
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Empty, Empty) -> Empty                 -- / + / = /
-                (Empty, _)   -> t2'                     -- / + t = t
-                (_, Empty)   -> t1'                     -- t + / = t
-                (Epsilon, Epsilon) -> Epsilon           -- e + e = e
-                _           -> Union t1' t2'            -- (t + s)' = t' + s'  
+                (Empty, Empty) -> Empty                         -- / + / = /
+                (Empty, _)   -> t2'                             -- / + t = t
+                (_, Empty)   -> t1'                             -- t + / = t
+                (Epsilon, Epsilon) -> Epsilon                   -- e + e = e
+                _           -> Union t1' t2'                    -- (t + s)' = t' + s'  
 
     -- Concat cases
     simplifyTree (Concat t1 t2)
@@ -185,11 +185,11 @@ simplifyAction = map simplifyTree
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
           in case (t1', t2') of
-                (Empty, _)   -> Empty                             -- / . t = /
-                (_, Empty)   -> Empty                             -- t . / = /
-                (Epsilon, _) -> t2'                               -- e . t = t
-                (_, Epsilon) -> t1'                               -- t . e = t
-                _           -> Concat t1' t2'                    -- (s . t)' = s' . t'
+                (Empty, _)   -> Empty                           -- / . t = /
+                (_, Empty)   -> Empty                           -- t . / = /
+                (Epsilon, _) -> t2'                             -- e . t = t
+                (_, Epsilon) -> t1'                             -- t . e = t
+                _           -> Concat t1' t2'                   -- (s . t)' = s' . t'
 
     -- Base cases
     simplifyTree (Literal c)  = Literal c                       -- base case
