@@ -12,6 +12,7 @@ data Options = Tree
              | HasNonEpsilon
              | Uses String
              | NotUsing String
+             | Infinite
   deriving (Show)
 
 -- Parser for command-line options
@@ -43,6 +44,9 @@ optionsParser =
         ( long "not-using"
         <> metavar "STRING"
         <> help "Check if the regex language does not contain a string that contains one of the given characters" )
+    <|> flag' Infinite
+        ( long "infinite"
+        <> help "Check if the regex language is infinite" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -152,6 +156,9 @@ main = do
 
         -- Check if the regex language does not contain a string that contains one of the given characters
             NotUsing s      -> Strings  (notUsingAction s trees)
+
+        -- Check if the regex language is infinite
+            Infinite        -> Strings  (infiniteAction trees)
 
 
 
@@ -319,3 +326,19 @@ notUsingAction s trees = map (notUsing s) (simplifyAction trees)
         notUsing chars (Star t)         = notUsing chars t
         notUsing _ Epsilon              = "yes"
         notUsing _ Null                 = "yes"
+
+-- Infinite Action
+-- Check if the regex language is infinite
+infiniteAction :: [RegexTree] -> [String]
+infiniteAction trees = map isInfiniteRegex (simplifyAction trees)
+    where
+        -- Helper function to check if a simplified tree is infinite
+        isInfiniteRegex :: RegexTree -> String
+        isInfiniteRegex (Star _) = "yes"  -- Star operator makes the language infinite
+        isInfiniteRegex (Union t1 t2) = if isInfiniteRegex t1 == "yes" || isInfiniteRegex t2 == "yes"
+                                      then "yes"
+                                      else "no"
+        isInfiniteRegex (Concat t1 t2) = if isInfiniteRegex t1 == "yes" || isInfiniteRegex t2 == "yes"
+                                      then "yes"
+                                      else "no"
+        isInfiniteRegex _ = "no"  -- For other cases, return "no"
