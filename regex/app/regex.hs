@@ -15,6 +15,7 @@ data Options = Tree
              | Infinite
              | StartsWith String
              | Reverse
+             | EndsWith String
   deriving (Show)
 
 -- Parser for command-line options
@@ -56,6 +57,11 @@ optionsParser =
     <|> flag' Reverse
         ( long "reverse"
         <> help "Reverse the regex, the trees will NOT be simplified" )
+    <|> EndsWith <$> strOption
+        ( long "ends-with"
+        <> metavar "STRING"
+        <> help "Check if the regex language contains a string that ends with one of the given characters"
+        )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -123,6 +129,12 @@ treeToPrefix (Union t1 t2) = '+' : treeToPrefix t1 ++ treeToPrefix t2
 treeToPrefix (Star t) = '*' : treeToPrefix t
 
 
+-- Helper function that maps true and false to "yes" and "no" respectively
+boolToString :: Bool -> String
+boolToString True  = "yes"
+boolToString False = "no"
+
+
 -- Main
 main :: IO ()
 main = do
@@ -174,6 +186,9 @@ main = do
 
         -- Reverse the regex, the trees will NOT be simplified
             Reverse         -> Trees    (reverseAction trees)
+
+        -- Check if the regex language contains a string that ends with one of the given characters
+            EndsWith s      -> Strings  (endsWithAction s trees)
 
 
 
@@ -270,119 +285,103 @@ simplifyAction = map simplifyTree
 -- Null Action
 -- Checks if the language of each regex tree is empty
 emptyAction :: [RegexTree] -> [String]
-emptyAction trees = map isNull (simplifyAction trees)
+emptyAction trees = map (boolToString . isNull) (simplifyAction trees)
     where
         -- Helper function to check if a simplified tree is Null
-        isNull :: RegexTree -> String
-        isNull Null     = "yes"
-        isNull _        = "no"
+        isNull :: RegexTree -> Bool
+        isNull Null     = True
+        isNull _        = False
 
 
 -- HasEpsilon Action
+-- Helper function to check if a simplified tree has Epsilon
+hasEpsilon :: RegexTree -> Bool
+hasEpsilon Epsilon  = True
+hasEpsilon (Star _) = True
+hasEpsilon (Union t1 t2) = hasEpsilon t1 || hasEpsilon t2
+hasEpsilon (Concat t1 t2) = hasEpsilon t1 && hasEpsilon t2
+hasEpsilon _ = False  -- For other cases, return False
+
 -- Checks if the language of each regex tree contains epsilon
 hasEpsilonAction :: [RegexTree] -> [String]
-hasEpsilonAction trees = map hasEpsilon (simplifyAction trees)
-    where
-        -- Helper function to check if a simplified tree has Epsilon
-        hasEpsilon :: RegexTree -> String
-        hasEpsilon Epsilon  = "yes"
-        hasEpsilon (Star _) = "yes"
-        hasEpsilon (Union t1 t2)    = if hasEpsilon t1 == "yes" || hasEpsilon t2 == "yes"
-                                        then "yes"
-                                        else "no"
-        hasEpsilon (Concat t1 t2)   = if hasEpsilon t1 == "yes" && hasEpsilon t2 == "yes"
-                                        then "yes"
-                                        else "no"
-        hasEpsilon _ = "no"  -- For other cases, return "no"
+hasEpsilonAction trees = map (boolToString . hasEpsilon) (simplifyAction trees)
+
 
 -- HasNonEpsilon Action
+-- Helper function to check if a simplified tree has some non-empty string
+hasNonEpsilon :: RegexTree -> Bool
+hasNonEpsilon Epsilon = False
+hasNonEpsilon Null = False
+hasNonEpsilon _ = True  -- Possible thanks to the simplification
+
 -- Checks if the language of each regex tree contains some non-empty string
 hasNonEpsilonAction :: [RegexTree] -> [String]
-hasNonEpsilonAction trees = map hasNonEpsilon (simplifyAction trees)
-    where
-        -- Helper function to check if a simplified tree has some non-empty string
-        hasNonEpsilon :: RegexTree -> String
-        hasNonEpsilon Epsilon   = "no"
-        hasNonEpsilon Null      = "no"
-        hasNonEpsilon _         = "yes"  -- Possible thanks to the simplifcation
+hasNonEpsilonAction trees = map (boolToString . hasNonEpsilon) (simplifyAction trees)
+
 
 -- Uses Action
+-- Helper function to check if a tree uses any character from the string
+uses :: String -> RegexTree -> Bool
+uses chars (Literal c) = c `elem` chars
+uses chars (Concat t1 t2) = uses chars t1 || uses chars t2
+uses chars (Union t1 t2) = uses chars t1 || uses chars t2
+uses chars (Star t) = uses chars t
+uses _ Epsilon = False
+uses _ Null = False
+
 -- Check if the regex language contains a string that contains one of the given characters
 usesAction :: String -> [RegexTree] -> [String]
-usesAction s trees = map (uses s) (simplifyAction trees)
-    where
-        -- Helper function to check if a tree uses any character from the string
-        uses :: String -> RegexTree -> String
-        uses chars (Literal c)      = if c `elem` chars then "yes" else "no"
-        uses chars (Concat t1 t2)   = if uses chars t1 == "yes" || uses chars t2 == "yes"
-                                        then "yes"
-                                        else "no"
-        uses chars (Union t1 t2)    = if uses chars t1 == "yes" || uses chars t2 == "yes"
-                                        then "yes"
-                                        else "no"
-        uses chars (Star t)         = uses chars t
-        uses _ Epsilon              = "no"
-        uses _ Null                 = "no"
+usesAction s trees = map (boolToString . uses s) (simplifyAction trees)
+
 
 -- NotUsing Action
+-- Helper function to check if a tree does not use any character from the string
+notUsing :: String -> RegexTree -> Bool
+notUsing chars (Literal c) = not (c `elem` chars)
+notUsing chars (Concat t1 t2) = notUsing chars t1 && notUsing chars t2
+notUsing chars (Union t1 t2) = notUsing chars t1 && notUsing chars t2
+notUsing chars (Star t) = notUsing chars t
+notUsing _ Epsilon = True
+notUsing _ Null = True
+
 -- Check if the regex language does not contain a string that contains one of the given characters
 notUsingAction :: String -> [RegexTree] -> [String]
-notUsingAction s trees = map (notUsing s) (simplifyAction trees)
-    where
-        -- Helper function to check if a tree does not use any character from the string
-        notUsing :: String -> RegexTree -> String
-        notUsing chars (Literal c)      = if c `elem` chars then "no" else "yes"
-        notUsing chars (Concat t1 t2)   = if notUsing chars t1 == "no" && notUsing chars t2 == "no"
-                                            then "no"
-                                            else "yes"
-        notUsing chars (Union t1 t2)    = if notUsing chars t1 == "no" && notUsing chars t2 == "no"
-                                            then "no"
-                                            else "yes"
-        notUsing chars (Star t)         = notUsing chars t
-        notUsing _ Epsilon              = "yes"
-        notUsing _ Null                 = "yes"
+notUsingAction s trees = map (boolToString . notUsing s) (simplifyAction trees)
+
 
 -- Infinite Action
+-- Helper function to check if a simplified tree is infinite
+isInfiniteRegex :: RegexTree -> Bool
+isInfiniteRegex (Star _) = True  -- Star operator makes the language infinite
+isInfiniteRegex (Union t1 t2) = isInfiniteRegex t1 || isInfiniteRegex t2
+isInfiniteRegex (Concat t1 t2) = isInfiniteRegex t1 || isInfiniteRegex t2
+isInfiniteRegex _ = False  -- For other cases, return False
+
 -- Check if the regex language is infinite
 infiniteAction :: [RegexTree] -> [String]
-infiniteAction trees = map isInfiniteRegex (simplifyAction trees)
-    where
-        -- Helper function to check if a simplified tree is infinite
-        isInfiniteRegex :: RegexTree -> String
-        isInfiniteRegex (Star _) = "yes"  -- Star operator makes the language infinite
-        isInfiniteRegex (Union t1 t2) = if isInfiniteRegex t1 == "yes" || isInfiniteRegex t2 == "yes"
-                                      then "yes"
-                                      else "no"
-        isInfiniteRegex (Concat t1 t2) = if isInfiniteRegex t1 == "yes" || isInfiniteRegex t2 == "yes"
-                                      then "yes"
-                                      else "no"
-        isInfiniteRegex _ = "no"  -- For other cases, return "no"
+infiniteAction trees = map (boolToString . isInfiniteRegex) (simplifyAction trees)
+
 
 -- StartsWith Action
+-- Helper function to check if a tree's language starts with any character in s
+startsWith :: String -> RegexTree -> Bool
+startsWith chars (Concat t1 t2) =
+    -- If t1 can be turned into Epsilon, also check t2
+    if hasEpsilon t1 then startsWith chars t2 || startsWith chars t1
+    else startsWith chars t1
+startsWith chars (Union t1 t2) = startsWith chars t1 || startsWith chars t2
+startsWith chars (Star t1) = startsWith chars t1
+startsWith chars (Literal c) = c `elem` chars
+startsWith _ _ = False
+
 -- Check if the regex language contains a string that starts with one of the given characters
 startsWithAction :: String -> [RegexTree] -> [String]
-startsWithAction s trees = map (startsWith s) (simplifyAction trees)
-    where
-        -- Helper function to check if a tree's language starts with any character in s
-        startsWith :: String -> RegexTree -> String
-
-        -- On concat, search left for a literal
-        startsWith chars (Concat t1 _)  = startsWith chars t1
-
-        -- On Unions, both left and right can work
-        startsWith chars (Union t1 t2)  = if startsWith chars t1 == "yes" || startsWith chars t2 == "yes"
-                                            then "yes"
-                                            else "no"
-
-        startsWith chars (Star t1)      = startsWith chars t1
-
-        startsWith chars (Literal c)    = if c `elem` chars then "yes" else "no"
-        startsWith _ _                  = "no"
+startsWithAction s trees = map (boolToString . startsWith s) (simplifyAction trees)
 
 -- reverseAction
 -- Reverse the regex, the trees will NOT be simplified
 reverseAction :: [RegexTree] -> [RegexTree]
-reverseAction = map reverseTree
+reverseAction {-trees-} = map reverseTree {-trees-}
     where
         -- Helper function that reverses a tree
         reverseTree :: RegexTree -> RegexTree
@@ -391,3 +390,19 @@ reverseAction = map reverseTree
         reverseTree (Concat t1 t2)  = Concat (reverseTree t2) (reverseTree t1)  -- Swap t1 and t2
 
         reverseTree other           = other
+
+-- EndsWith Action
+-- Helper function to check if a tree's language ends with any character in s
+endsWith :: String -> RegexTree -> Bool
+endsWith chars (Concat t1 t2) =
+    -- If t2 can be turned into Epsilon, also check t1
+    if hasEpsilon t2 then endsWith chars t1 || endsWith chars t2
+    else endsWith chars t2
+endsWith chars (Union t1 t2) = endsWith chars t1 || endsWith chars t2
+endsWith chars (Star t1) = endsWith chars t1
+endsWith chars (Literal c) = c `elem` chars
+endsWith _ _ = False
+
+-- Check if the regex language contains a string that ends with one of the given characters
+endsWithAction :: String -> [RegexTree] -> [String]
+endsWithAction s trees = map (boolToString . endsWith s) (simplifyAction trees)
