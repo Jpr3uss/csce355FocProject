@@ -14,6 +14,7 @@ data Options = Tree
              | NotUsing String
              | Infinite
              | StartsWith String
+             | Reverse
   deriving (Show)
 
 -- Parser for command-line options
@@ -52,6 +53,9 @@ optionsParser =
         ( long "starts-with"
         <> metavar "STRING"
         <> help "Check if the regex language contains a string that starts with one of the given characters" )
+    <|> flag' Reverse
+        ( long "reverse"
+        <> help "Reverse the regex, the trees will NOT be simplified" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -143,7 +147,7 @@ main = do
 
         -- Do nothing, just parse and print
             NoOp            -> Trees    (noOpAction trees)
-        
+
         -- Simplify the regex
             Simplify        -> Trees    (simplifyAction trees)
 
@@ -152,7 +156,7 @@ main = do
 
         -- Check if the regex language contains epsilon
             HasEpsilon      -> Strings  (hasEpsilonAction trees)
-        
+
         -- Check if the regex language contains some non-empty string
             HasNonEpsilon   -> Strings  (hasNonEpsilonAction trees)
 
@@ -167,6 +171,9 @@ main = do
 
         -- Check if the regex language contains a string that starts with one of the given characters
             StartsWith s    -> Strings  (startsWithAction s trees)
+
+        -- Reverse the regex, the trees will NOT be simplified
+            Reverse         -> Trees    (reverseAction trees)
 
 
 
@@ -371,3 +378,16 @@ startsWithAction s trees = map (startsWith s) (simplifyAction trees)
 
         startsWith chars (Literal c)    = if c `elem` chars then "yes" else "no"
         startsWith _ _                  = "no"
+
+-- reverseAction
+-- Reverse the regex, the trees will NOT be simplified
+reverseAction :: [RegexTree] -> [RegexTree]
+reverseAction = map reverseTree
+    where
+        -- Helper function that reverses a tree
+        reverseTree :: RegexTree -> RegexTree
+        reverseTree (Star      t1)  = Star   (reverseTree t1)                   -- Go down the tree
+        reverseTree (Union  t1 t2)  = Union  (reverseTree t1) (reverseTree t2)  -- ditto
+        reverseTree (Concat t1 t2)  = Concat (reverseTree t2) (reverseTree t1)  -- Swap t1 and t2
+
+        reverseTree other           = other
