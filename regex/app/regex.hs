@@ -16,6 +16,7 @@ data Options = Tree
              | StartsWith String
              | Reverse
              | EndsWith String
+             | Prefixes
   deriving (Show)
 
 -- Parser for command-line options
@@ -62,6 +63,9 @@ optionsParser =
         <> metavar "STRING"
         <> help "Check if the regex language contains a string that ends with one of the given characters"
         )
+    <|> flag' Prefixes
+        ( long "prefixes"
+        <> help "Output a new regex whos language denotes all prefixes of strings in the original language" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -189,6 +193,9 @@ main = do
 
         -- Check if the regex language contains a string that ends with one of the given characters
             EndsWith s      -> Strings  (endsWithAction s trees)
+
+        -- Output a new regex whos language denotes all prefixes of strings in the original language
+            Prefixes        -> Trees    (prefixAction trees)
 
 
 
@@ -407,3 +414,22 @@ endsWith _ _ = False
 -- Check if the regex language contains a string that ends with one of the given characters
 endsWithAction :: String -> [RegexTree] -> [String]
 endsWithAction s trees = map (boolToString . endsWith s) (simplifyAction trees)
+
+-- TODO: This actually exposed a bug in simplifyAction where it doesn't fully simplify the regex.
+
+-- Prefixes Action
+prefixTree :: RegexTree -> RegexTree
+prefixTree Epsilon = Epsilon
+prefixTree Null = Null
+prefixTree (Literal c) = Union Epsilon (Literal c)
+prefixTree (Concat t1 t2) =
+    Union (prefixTree t1)
+          (Concat t1 (prefixTree t2))
+prefixTree (Union t1 t2) =
+    Union (prefixTree t1) (prefixTree t2)
+prefixTree (Star t1) =
+    Union Epsilon (Concat (prefixTree t1) (Star t1))
+
+-- Output a new regex whos language denotes all prefixes of strings in the original language
+prefixAction :: [RegexTree] -> [RegexTree]
+prefixAction trees = simplifyAction (map prefixTree (simplifyAction trees))
