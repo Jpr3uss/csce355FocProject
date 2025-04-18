@@ -379,17 +379,18 @@ startsWithAction :: String -> [RegexTree] -> [String]
 startsWithAction s trees = map (boolToString . startsWith s) (simplifyAction trees)
 
 -- reverseAction
+-- Helper function that reverses a tree
+reverseTree :: RegexTree -> RegexTree
+reverseTree (Star      t1)  = Star   (reverseTree t1)                   -- Go down the tree
+reverseTree (Union  t1 t2)  = Union  (reverseTree t1) (reverseTree t2)  -- ditto
+reverseTree (Concat t1 t2)  = Concat (reverseTree t2) (reverseTree t1)  -- Swap t1 and t2
+
+reverseTree other           = other
+
+
 -- Reverse the regex, the trees will NOT be simplified
 reverseAction :: [RegexTree] -> [RegexTree]
 reverseAction {-trees-} = map reverseTree {-trees-}
-    where
-        -- Helper function that reverses a tree
-        reverseTree :: RegexTree -> RegexTree
-        reverseTree (Star      t1)  = Star   (reverseTree t1)                   -- Go down the tree
-        reverseTree (Union  t1 t2)  = Union  (reverseTree t1) (reverseTree t2)  -- ditto
-        reverseTree (Concat t1 t2)  = Concat (reverseTree t2) (reverseTree t1)  -- Swap t1 and t2
-
-        reverseTree other           = other
 
 -- EndsWith Action
 -- Helper function to check if a tree's language ends with any character in s
