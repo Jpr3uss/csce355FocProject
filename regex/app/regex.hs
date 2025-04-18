@@ -46,7 +46,7 @@ optionsParser =
     <|> NotUsing <$> strOption
         ( long "not-using"
         <> metavar "STRING"
-        <> help "Check if the regex language does not contain a string that contains one of the given characters" )
+        <> help "Output a new regex whos language doesn't include a in any string" )
     <|> flag' Infinite
         ( long "infinite"
         <> help "Check if the regex language is infinite" )
@@ -175,8 +175,8 @@ main = do
         -- Check if the regex language contains a string that contains one of the given characters
             Uses s          -> Strings  (usesAction s trees)
 
-        -- Check if the regex language does not contain a string that contains one of the given characters
-            NotUsing s      -> Strings  (notUsingAction s trees)
+        -- Output a new regex whos language doesn't include a in any string
+            NotUsing s      -> Trees  (notUsingAction s trees)
 
         -- Check if the regex language is infinite
             Infinite        -> Strings  (infiniteAction trees)
@@ -335,18 +335,18 @@ usesAction s trees = map (boolToString . uses s) (simplifyAction trees)
 
 
 -- NotUsing Action
--- Helper function to check if a tree does not use any character from the string
-notUsing :: String -> RegexTree -> Bool
-notUsing chars (Literal c) = not (c `elem` chars)
-notUsing chars (Concat t1 t2) = notUsing chars t1 && notUsing chars t2
-notUsing chars (Union t1 t2) = notUsing chars t1 && notUsing chars t2
-notUsing chars (Star t) = notUsing chars t
-notUsing _ Epsilon = True
-notUsing _ Null = True
+-- Helper function to convert a tree to a new tree that doesn't use any character from the string
+notUsing :: String -> RegexTree -> RegexTree
+notUsing chars (Star t) = Star (notUsing chars t)
+notUsing chars (Union t1 t2) = Union (notUsing chars t1) (notUsing chars t2)
+notUsing chars (Concat t1 t2) = Concat (notUsing chars t1) (notUsing chars t2)
+notUsing chars (Literal c) =
+    if c `elem` chars then Null else Literal c
+notUsing _ others = others
 
--- Check if the regex language does not contain a string that contains one of the given characters
-notUsingAction :: String -> [RegexTree] -> [String]
-notUsingAction s trees = map (boolToString . notUsing s) (simplifyAction trees)
+-- Output a new regex whos language doesn't include a in any string
+notUsingAction :: String -> [RegexTree] -> [RegexTree]
+notUsingAction s {-trees-} = map (notUsing s) {-trees-}
 
 
 -- Infinite Action
