@@ -13,6 +13,7 @@ data Options = Tree
              | Uses String
              | NotUsing String
              | Infinite
+             | StartsWith String
   deriving (Show)
 
 -- Parser for command-line options
@@ -47,6 +48,10 @@ optionsParser =
     <|> flag' Infinite
         ( long "infinite"
         <> help "Check if the regex language is infinite" )
+    <|> StartsWith <$> strOption
+        ( long "starts-with"
+        <> metavar "STRING"
+        <> help "Check if the regex language contains a string that starts with one of the given characters" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -159,6 +164,9 @@ main = do
 
         -- Check if the regex language is infinite
             Infinite        -> Strings  (infiniteAction trees)
+
+        -- Check if the regex language contains a string that starts with one of the given characters
+            StartsWith s    -> Strings  (startsWithAction s trees)
 
 
 
@@ -342,3 +350,24 @@ infiniteAction trees = map isInfiniteRegex (simplifyAction trees)
                                       then "yes"
                                       else "no"
         isInfiniteRegex _ = "no"  -- For other cases, return "no"
+
+-- StartsWith Action
+-- Check if the regex language contains a string that starts with one of the given characters
+startsWithAction :: String -> [RegexTree] -> [String]
+startsWithAction s trees = map (startsWith s) (simplifyAction trees)
+    where
+        -- Helper function to check if a tree's language starts with any character in s
+        startsWith :: String -> RegexTree -> String
+
+        -- On concat, search left for a literal
+        startsWith chars (Concat t1 _)  = startsWith chars t1
+
+        -- On Unions, both left and right can work
+        startsWith chars (Union t1 t2)  = if startsWith chars t1 == "yes" || startsWith chars t2 == "yes"
+                                            then "yes"
+                                            else "no"
+
+        startsWith chars (Star t1)      = startsWith chars t1
+
+        startsWith chars (Literal c)    = if c `elem` chars then "yes" else "no"
+        startsWith _ _                  = "no"
