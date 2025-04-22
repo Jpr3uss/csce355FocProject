@@ -1,6 +1,5 @@
 import Options.Applicative
 
-
 -- ==================================== POSIX OPTIONS =============================================
 
 -- Command-line options data type
@@ -256,8 +255,6 @@ simplifyAction = map simplifyTree
       | t1 == Null = simplifyTree t2                            -- / + t = t
       | t2 == Null = simplifyTree t1                            -- t + / = t
       | t1 == Epsilon && t2 == Epsilon = Epsilon                -- e + e = e
-      | t1 == Epsilon = Union Epsilon (simplifyTree t2)         -- e + t = t
-      | t2 == Epsilon = Union (simplifyTree t1) Epsilon         -- t + e = t
       | otherwise =
           let t1' = simplifyTree t1
               t2' = simplifyTree t2
@@ -265,8 +262,11 @@ simplifyAction = map simplifyTree
                 (Null, Null) -> Null                            -- / + / = /
                 (Null, _)   -> t2'                              -- / + t = t
                 (_, Null)   -> t1'                              -- t + / = t
+                (Epsilon, _) | hasEpsilon t2' -> t2'            -- e + t = t if t has epsilon
+                (_, Epsilon) | hasEpsilon t1' -> t1'            -- t + e = t if t has epsilon
                 (Epsilon, Epsilon) -> Epsilon                   -- e + e = e
-                _           -> Union t1' t2'                    -- (t + s)' = t' + s'  
+                _           -> Union t1' t2'                    -- (t + s)' = t' + s'
+
 
     -- Concat cases
     simplifyTree (Concat t1 t2)
@@ -421,7 +421,7 @@ endsWithAction s trees = map (boolToString . endsWith s) (simplifyAction trees)
 prefixTree :: RegexTree -> RegexTree
 prefixTree Epsilon = Epsilon
 prefixTree Null = Null
-prefixTree (Literal c) = Union Epsilon (Literal c)
+prefixTree (Literal c) = Union (Literal c) Epsilon
 prefixTree (Concat t1 t2) =
     Union (prefixTree t1)
           (Concat t1 (prefixTree t2))
@@ -433,3 +433,10 @@ prefixTree (Star t1) =
 -- Output a new regex whos language denotes all prefixes of strings in the original language
 prefixAction :: [RegexTree] -> [RegexTree]
 prefixAction trees = simplifyAction (map prefixTree (simplifyAction trees))
+
+-- The first simplification is required however for the second simplification... given how some tests
+-- end up being over or under simplified, and this entire time I could not find a counter example
+-- I am willing to conjecture that this function is correct regardless of whether you do the double
+-- simplify or not. The regexes are not exact but they are equivalent, at least to my current knowledge.
+
+
