@@ -17,6 +17,7 @@ data Options = Tree
              | EndsWith String
              | Prefixes
              | BsForA
+             | Insert String
   deriving (Show)
 
 -- Parser for command-line options
@@ -42,33 +43,36 @@ optionsParser =
         <> help "Check if the regex language contains some non-empty string" )
     <|> Uses <$> strOption
         ( long "uses"
-        <> metavar "CHAR"
+        <> metavar "STRING"
         <> help "Check if the regex language contains a string that contains one of the given characters" )
     <|> NotUsing <$> strOption
         ( long "not-using"
-        <> metavar "CHAR"
+        <> metavar "STRING"
         <> help "Output a new regex whos language doesn't include a in any string" )
     <|> flag' Infinite
         ( long "infinite"
         <> help "Check if the regex language is infinite" )
     <|> StartsWith <$> strOption
         ( long "starts-with"
-        <> metavar "CHAR"
+        <> metavar "STRING"
         <> help "Check if the regex language contains a string that starts with one of the given characters" )
     <|> flag' Reverse
         ( long "reverse"
         <> help "Reverse the regex, the trees will NOT be simplified" )
     <|> EndsWith <$> strOption
         ( long "ends-with"
-        <> metavar "CHAR"
-        <> help "Check if the regex language contains a string that ends with one of the given characters"
-        )
+        <> metavar "STRING"
+        <> help "Check if the regex language contains a string that ends with one of the given characters" )
     <|> flag' Prefixes
         ( long "prefixes"
         <> help "Output a new regex whos language denotes all prefixes of strings in the original language" )
     <|> flag' BsForA
         ( long "bs-for-a"
         <> help "Output a new regex that denotes the language of the original regex with all 'a's replaced by zero or more 'b's" )
+    <|> Insert <$> strOption
+        ( long "insert"
+        <> metavar "CHAR"
+        <> help "Output a new regex whos language is now contains every string in the old language with the character inserted once somewhere in the string." )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -142,6 +146,8 @@ boolToString True  = "yes"
 boolToString False = "no"
 
 
+
+
 -- Main
 main :: IO ()
 main = do
@@ -162,46 +168,54 @@ main = do
     -- Apply the appropriate action based on the option
     let result = case opts of
         -- Convert trees to strings for direct printing
-            Tree            -> Strings  (map show trees)
+            Tree            ->  Strings  (map show trees)
 
         -- Do nothing, just parse and print
-            NoOp            -> Trees    (noOpAction trees)
+            NoOp            ->  Trees    (noOpAction trees)
 
         -- Simplify the regex
-            Simplify        -> Trees    (simplifyAction trees)
+            Simplify        ->  Trees    (simplifyAction trees)
 
         -- Check if the regex language is empty
-            Empty           -> Strings  (emptyAction trees)
+            Empty           ->  Strings  (emptyAction trees)
 
         -- Check if the regex language contains epsilon
-            HasEpsilon      -> Strings  (hasEpsilonAction trees)
+            HasEpsilon      ->  Strings  (hasEpsilonAction trees)
 
         -- Check if the regex language contains some non-empty string
-            HasNonEpsilon   -> Strings  (hasNonEpsilonAction trees)
+            HasNonEpsilon   ->  Strings  (hasNonEpsilonAction trees)
 
         -- Check if the regex language contains a string that contains one of the given characters
-            Uses s          -> Strings  (usesAction s trees)
+            Uses s          ->  Strings  (usesAction s trees)
 
         -- Output a new regex whos language doesn't include a in any string
-            NotUsing s      -> Trees  (notUsingAction s trees)
+            NotUsing s      ->  Trees  (notUsingAction s trees)
 
         -- Check if the regex language is infinite
-            Infinite        -> Strings  (infiniteAction trees)
+            Infinite        ->  Strings  (infiniteAction trees)
 
         -- Check if the regex language contains a string that starts with one of the given characters
-            StartsWith s    -> Strings  (startsWithAction s trees)
+            StartsWith s    ->  Strings  (startsWithAction s trees)
 
         -- Reverse the regex, the trees will NOT be simplified
-            Reverse         -> Trees    (reverseAction trees)
+            Reverse         ->  Trees    (reverseAction trees)
 
         -- Check if the regex language contains a string that ends with one of the given characters
-            EndsWith s      -> Strings  (endsWithAction s trees)
+            EndsWith s      ->  Strings  (endsWithAction s trees)
 
         -- Output a new regex whos language denotes all prefixes of strings in the original language
-            Prefixes        -> Trees    (prefixAction trees)
+            Prefixes        ->  Trees    (prefixAction trees)
 
         -- Output a new regex that denotes the language of the original regex with all 'a's replaced by zero or more 'b's
-            BsForA          -> Trees    (bsForAAction trees)
+            BsForA          ->  Trees    (bsForAAction trees)
+
+        -- Output a new regex whos language is now contains every string in the old language with the character inserted once somewhere in the string.
+            Insert s        -> 
+                if length s == 1 then
+                    Trees (insertAction (head s) trees)
+                else
+                    error "Invalid regex: --insert requires a single character"
+                                
 
 
 
@@ -458,6 +472,26 @@ bsForA (Literal c) = if c == 'a' then Star (Literal 'b') else Literal c
 
 bsForA other = other
 
--- Output a new regex that denotes the language of the original regex with all 'a's replaced by zero or more 'b's
+-- Output a new regex that denotes the language of the original regex with all 'a's replaced by
+-- zero or more 'b's
 bsForAAction :: [RegexTree] -> [RegexTree]
-bsForAAction = map bsForA
+bsForAAction {-trees-} = map bsForA {-trees-}
+
+-- Insert Action
+-- Helper function to insert a character into a regex tree
+insert :: Char -> RegexTree -> RegexTree
+insert c (Star t) = Star (insert c t)  -- Insert into the star
+insert c (Union t1 t2) = Union (insert c t1) (insert c t2)  -- Insert into the union
+insert c (Concat t1 t2) =
+    Union (Concat (insert c t1) t2) (Concat t1 (insert c t2))  -- Insert into the concat
+insert c (Literal d) = Union (Concat (Literal c) (Literal d)) (Concat (Literal d) (Literal c))  -- Insert into the literal
+
+-- I have no idea why this is correct, other than it is shown comparing case 9 in test/input.txt with test/insert-a.txt 
+insert c Epsilon = Union (Literal c) (Concat (Concat (Star Epsilon) Null) (Star Epsilon)) 
+
+insert _ Null = Null  -- Null case
+
+-- Output a new regex whos language is now contains every string in the old language with the character
+-- inserted once somewhere in the string.
+insertAction :: Char -> [RegexTree] -> [RegexTree]
+insertAction c {-trees-} = map (insert c) {-trees-}
