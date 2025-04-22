@@ -16,6 +16,7 @@ data Options = Tree
              | Reverse
              | EndsWith String
              | Prefixes
+             | BsForA
   deriving (Show)
 
 -- Parser for command-line options
@@ -41,30 +42,33 @@ optionsParser =
         <> help "Check if the regex language contains some non-empty string" )
     <|> Uses <$> strOption
         ( long "uses"
-        <> metavar "STRING"
+        <> metavar "CHAR"
         <> help "Check if the regex language contains a string that contains one of the given characters" )
     <|> NotUsing <$> strOption
         ( long "not-using"
-        <> metavar "STRING"
+        <> metavar "CHAR"
         <> help "Output a new regex whos language doesn't include a in any string" )
     <|> flag' Infinite
         ( long "infinite"
         <> help "Check if the regex language is infinite" )
     <|> StartsWith <$> strOption
         ( long "starts-with"
-        <> metavar "STRING"
+        <> metavar "CHAR"
         <> help "Check if the regex language contains a string that starts with one of the given characters" )
     <|> flag' Reverse
         ( long "reverse"
         <> help "Reverse the regex, the trees will NOT be simplified" )
     <|> EndsWith <$> strOption
         ( long "ends-with"
-        <> metavar "STRING"
+        <> metavar "CHAR"
         <> help "Check if the regex language contains a string that ends with one of the given characters"
         )
     <|> flag' Prefixes
         ( long "prefixes"
         <> help "Output a new regex whos language denotes all prefixes of strings in the original language" )
+    <|> flag' BsForA
+        ( long "bs-for-a"
+        <> help "Output a new regex that denotes the language of the original regex with all 'a's replaced by zero or more 'b's" )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -196,6 +200,8 @@ main = do
         -- Output a new regex whos language denotes all prefixes of strings in the original language
             Prefixes        -> Trees    (prefixAction trees)
 
+        -- Output a new regex that denotes the language of the original regex with all 'a's replaced by zero or more 'b's
+            BsForA          -> Trees    (bsForAAction trees)
 
 
 
@@ -439,4 +445,19 @@ prefixAction trees = simplifyAction (map prefixTree (simplifyAction trees))
 -- I am willing to conjecture that this function is correct regardless of whether you do the double
 -- simplify or not. The regexes are not exact but they are equivalent, at least to my current knowledge.
 
+-- BsForA Action
+-- Helper function to replace 'a' with 'b*'
+bsForA :: RegexTree -> RegexTree
+-- recursive case
+bsForA (Concat t1 t2) = Concat (bsForA t1) (bsForA t2)
+bsForA (Union  t1 t2) = Union  (bsForA t1) (bsForA t2)
+bsForA (Star   t1   ) = Star   (bsForA t1)
 
+-- base case
+bsForA (Literal c) = if c == 'a' then Star (Literal 'b') else Literal c
+
+bsForA other = other
+
+-- Output a new regex that denotes the language of the original regex with all 'a's replaced by zero or more 'b's
+bsForAAction :: [RegexTree] -> [RegexTree]
+bsForAAction = map bsForA
