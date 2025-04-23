@@ -18,7 +18,7 @@
 
 ######## Edit the following to reflect your directory structure (mandatory):
 
-# directory containing all the test files that we supply
+# directory containing all the test files
 # (edit this for self-testing; when we grade, it will point to our version)
 $test_files_root = "$ENV{HOME}/public_html/csce355/prog-proj2/sp25/test";
 
@@ -56,10 +56,6 @@ $submission_root = "$ENV{HOME}/public_html/csce355/prog-proj2/sp25/solution";
 );
 
 # Hash of the possible command line arguments and their types
-#   'boolean' means the output is either yes or no
-#   'transform' means the output is a regex
-#   If ' symbol' is present, then the command line takes a symbol
-#              as an additional argument.
 %command_line_args_hash = (
     'no-op'          => 'transform',
     'simplify'       => 'transform',
@@ -67,7 +63,7 @@ $submission_root = "$ENV{HOME}/public_html/csce355/prog-proj2/sp25/solution";
     'has-epsilon'    => 'boolean',
     'has-nonepsilon' => 'boolean',
     'uses'           => 'boolean symbol',
-    'not-using'      => 'transform symbol',
+    'not-using'      => 'transform',
     'infinite'       => 'boolean',
     'starts-with'    => 'boolean symbol',
     'reverse'        => 'transform',
@@ -89,7 +85,7 @@ $submission_root = "$ENV{HOME}/public_html/csce355/prog-proj2/sp25/solution";
 # Change this if you want them placed somewhere else.  You should NOT
 # set this to be the same as your test directory; otherwise it will clobber
 # the files used to compare with your outputs!
-$test_outputs = "test_outputs";
+$test_outputs = "test-outputs";
 
 # Flag to control deletion of temporary files, i.e., the output files
 # created by running your program
@@ -151,11 +147,6 @@ sub process_user {
 	unless chdir $udir;
 
     print "Current working directory is $udir\n";
-
-    print "Comparing $udir/$test_outputs with $test_files_root\n";
-    # Check that $test_outputs directory is not the same as the test directory
-    die "test_output directory is the same as the test directory! Quitting\n"
-	unless "$udir/$test_outputs" ne $test_files_root;
 
     # Copy STDOUT and STDERR to errlog.txt in $udir
     open STDOUT, "| tee errlog.txt" or die "Can't redirect stdout\n";
@@ -248,8 +239,8 @@ sub test_task {
 	    $command = "(" . $command;
 	    $command .= " | $utils/pre2in)";
 	}
-	$command .= " < $in_file > $test_outputs/my-$arg.txt";
-	$command .= " 2> $test_outputs/my-$arg-err.txt";
+	$command .= " < $in_file > $test_outputs/$arg.txt";
+	$command .= " 2> $test_outputs/$arg-err.txt";
 	push @tasks, ($command);
     }
     else {    # the program takes a symbol as an extra command line argument
@@ -260,8 +251,8 @@ sub test_task {
 		$symb_command = "(" . $symb_command;
 		$symb_command .= " | $utils/pre2in)";
 	    }
-	    $symb_command .= " < $in_file > $test_outputs/my-$arg-$symb.txt";
-	    $symb_command .= " 2> $test_outputs/my-$arg-$symb-err.txt";
+	    $symb_command .= " < $in_file > $test_outputs/$arg-$symb.txt";
+	    $symb_command .= " 2> $test_outputs/$arg-$symb-err.txt";
 	    push @tasks, ($symb_command);
 	}
     }
@@ -269,8 +260,8 @@ sub test_task {
     $progress{$arg} = 1;
     foreach $task (@tasks) {
 
-	$task =~ /\/my-([^\/.]+)\.txt 2>/; $out_base = $1;
-	cmt("  Running the command:\n  $task\nOutput base name: my-$out_base\n");
+	$task =~ /\/([^\/.]+)\.txt 2>/; $out_base = $1;
+	cmt("  Running the command:\n  $task\nOutput base name: $out_base\n");
 	eval {
 	    local $SIG{ALRM} = sub { die "TIMED OUT\n" };
 	    alarm $timeout;
@@ -279,10 +270,10 @@ sub test_task {
 	};
 	if ($@ && $@ eq "TIMED OUT\n") {
 	    cmt("    $@");		# program timed out before finishing
-	    unlink "$test_outputs/my-$out_base.txt"
-		if -e "$test_outputs/my-$out_base.txt";
-	    unlink "$test_outputs/my-$out_base-err.txt"
-		if -e "$test_outputs/my-$out_base-err.txt";
+	    unlink "$test_outputs/$out_base.txt"
+		if -e "$test_outputs/$out_base.txt";
+	    unlink "$test_outputs/$out_base-err.txt"
+		if -e "$test_outputs/$out_base-err.txt";
 	    $progress{$arg} = 0;
 	    next;
 	}
@@ -292,18 +283,18 @@ sub test_task {
 	else {
 	    cmt("    (terminated with zero status (status ignored))\n");
 	}
-        error_report("$test_outputs/my-$out_base");
+        error_report("$test_outputs/$out_base");
 
-	if (!(-e "$test_outputs/my-$out_base.txt")) {
-	    cmt("  OUTPUT FILE $test_outputs/my-$out_base.txt DOES NOT EXIST\n");
+	if (!(-e "$test_outputs/$out_base.txt")) {
+	    cmt("  OUTPUT FILE $test_outputs/$out_base.txt DOES NOT EXIST\n");
 	    $progress{$arg} = 0;
 	    next;
 	}
 
-	cmt("  $test_outputs/my-$out_base.txt exists---comparing with solution\n");
+	cmt("  $test_outputs/$out_base.txt exists---comparing with solution\n");
 
 	$report = check_outcomes($out_base);
-	unlink "$test_outputs/my-$out_base.txt" if $delete_temps;
+	unlink "$test_outputs/$out_base.txt" if $delete_temps;
 	chomp $report;
 	if ($report eq '') {
 	    cmt("  outcomes match (correct)\n");
@@ -388,8 +379,8 @@ sub check_outcomes {
     my $diff;
 
     cmt("Running \"diff\" on your output and the solution:\n");
-    cmt("  diff $test_outputs/my-$out_base.txt $test_files_root/$out_base.txt\n");
-    $diff = `diff $test_outputs/my-$out_base.txt $test_files_root/$out_base.txt`;
+    cmt("  diff $test_outputs/$out_base.txt $test_files_root/$out_base.txt\n");
+    $diff = `diff $test_outputs/$out_base.txt $test_files_root/$out_base.txt`;
     return $diff;
 }
 
