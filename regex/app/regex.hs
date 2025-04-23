@@ -84,6 +84,7 @@ optsInfo = info (optionsParser <**> helper)
   ( fullDesc
     <> progDesc "Parse and process regexes from stdin"
     <> header "regex - a simple regex parser"
+    <> footer "Author: Joseph Preuss jpreuss@email.sc.edu"
   )
 
 
