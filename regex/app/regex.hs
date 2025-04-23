@@ -492,16 +492,20 @@ bsForAAction {-trees-} = map bsForA {-trees-}
 -- Insert Action
 -- Helper function to insert a character into a regex tree
 insert :: Char -> RegexTree -> RegexTree
-insert c (Star t) = Star (insert c t)  -- Insert into the star
-insert c (Union t1 t2) = Union (insert c t1) (insert c t2)  -- Insert into the union
-insert c (Concat t1 t2) =
-    Union (Concat (insert c t1) t2) (Concat t1 (insert c t2))  -- Insert into the concat
-insert c (Literal d) = Union (Concat (Literal c) (Literal d)) (Concat (Literal d) (Literal c))  -- Insert into the literal
-
+insert c (Union  t1 t2) = Union (insert c t1) (insert c t2)     -- s + t = s' + t'
+insert c (Concat t1 t2) = 
+    Union  (Concat (insert c t1) t2) (Concat t1 (insert c t2))  -- s . t = s't + st'
+insert c (Star t1     ) = 
+    --Concat (Concat (Star t1) (insert c t1)) (Star t1)           -- s*    = s*s's*
+    Union t1 (Concat (Concat (Star (Star t1)) (insert c t1)) (Star (Star t1)))
+-- Base cases
+insert _ Null           = Null
 -- I have no idea why this is correct, other than it is shown comparing case 9 in test/input.txt with test/insert-a.txt 
-insert c Epsilon = Union (Literal c) (Concat (Concat (Star Epsilon) Null) (Star Epsilon)) 
+-- EDIT, its likely because its adding a union a + e' and e = /*, so the star rule applies to null
+--       however currently since epsilon is a primative in this code, I have to add it in manually.
+insert c Epsilon        = Union (Literal c) (Concat (Concat (Star Epsilon) Null) (Star Epsilon))
 
-insert _ Null = Null  -- Null case
+insert c (Literal d)    = Union (Concat (Literal c) (Literal d)) (Concat (Literal d) (Literal c))
 
 -- Output a new regex whos language is now contains every string in the old language with the character
 -- inserted once somewhere in the string.
@@ -510,7 +514,6 @@ insertAction c {-trees-} = map (insert c) {-trees-}
 
 
 -- Strip Action
-
 -- Helper function to strip a character from a regex tree
 strip :: Char -> RegexTree -> RegexTree
 
