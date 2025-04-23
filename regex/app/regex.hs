@@ -18,6 +18,7 @@ data Options = Tree
              | Prefixes
              | BsForA
              | Insert String
+             | Strip String
   deriving (Show)
 
 -- Parser for command-line options
@@ -73,6 +74,10 @@ optionsParser =
         ( long "insert"
         <> metavar "CHAR"
         <> help "Output a new regex whos language is now contains every string in the old language with the character inserted once somewhere in the string." )
+    <|> Strip <$> strOption
+        ( long "strip"
+        <> metavar "CHAR"
+        <> help "Output a new regex whos language is all the strings in the old language that start with CHAR but with it removed." )
 
 optsInfo :: ParserInfo Options
 optsInfo = info (optionsParser <**> helper)
@@ -214,7 +219,14 @@ main = do
                 if length s == 1 then
                     Trees (insertAction (head s) trees)
                 else
-                    error "Invalid regex: --insert requires a single character"
+                    error "Invalid argument: --insert requires a single character"
+        
+        -- Output a new regex whos language is all the strings in the old language that start with CHAR but with it removed.
+            Strip s         -> 
+                if length s == 1 then
+                    Trees (stripAction (head s) trees)
+                else
+                    error "Invalid argument: --strip requires a single character"
                                 
 
 
@@ -495,3 +507,33 @@ insert _ Null = Null  -- Null case
 -- inserted once somewhere in the string.
 insertAction :: Char -> [RegexTree] -> [RegexTree]
 insertAction c {-trees-} = map (insert c) {-trees-}
+
+
+-- Strip Action
+
+-- Helper function to strip a character from a regex tree
+strip :: Char -> RegexTree -> RegexTree
+
+strip c (Star t1) = Concat (strip c t1) (Star t1)               -- s*    = s' . s*
+
+strip c (Union t1 t2) = Union (strip c t1) (strip c t2)         -- s + t = s' + t'
+
+strip c (Concat t1 t2) =                                        -- s . t = 
+    if hasEpsilon t1 then                                       --
+        Union (Concat (strip c t1) t2) (strip c t2)             --          s' . t + t' if hasEpsilon s
+    else                                                        --
+        Concat (strip c t1) t2                                  --          s' . t      otherwise
+
+-- Base cases
+strip _ Null    = Null
+strip _ Epsilon = Concat Null Epsilon                           -- For some reason
+
+strip c (Literal d) =                                           -- Literal c =
+    if d == c then                                              --
+        Epsilon                                                 --              e if c == d
+    else                                                        --
+        Null                                                    --              / otherwise                           
+
+-- Output a new regex whos language is all the strings in the old language that start with CHAR but with it removed.
+stripAction :: Char -> [RegexTree] -> [RegexTree]
+stripAction c {-trees-} = map (strip c) {-trees-}
