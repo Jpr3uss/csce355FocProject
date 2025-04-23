@@ -1,3 +1,6 @@
+-- This file simply copies the binary into the app/ directory instead of in 
+-- dist-newstyle/build/x86_64-linux/ghc-9.4.8/regex-0.1.0.0/build/regex
+
 import Distribution.Simple
 import System.Directory (copyFile)
 import System.FilePath ((</>))

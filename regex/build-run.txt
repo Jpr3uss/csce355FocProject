@@ -1,4 +1,6 @@
 Build:
     cabal build
 Run:
+    # In case the dependencies are not proper in the linux machines, the compiled 
+    # x86_64 Linux ELF binary has already been provided in app/
     out/regex
