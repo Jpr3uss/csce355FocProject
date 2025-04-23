@@ -1,0 +1,4 @@
+Build:
+    cabal build
+Run:
+    out/regex
